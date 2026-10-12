@@ -1,0 +1,69 @@
+# v* etiketinde Linux + Windows ikilisini derler, TASLAK release'e yükler (yayına alma elle).
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04        # eski glibc → daha çok dağıtımda çalışır
+            ad: x86_64-linux
+          - os: windows-latest
+            ad: x86_64-windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable
+      - run: cargo build --release --locked
+      - run: cargo test --workspace --release --locked
+        timeout-minutes: 10
+      - name: paketle
+        shell: bash
+        run: |
+          set -euo pipefail
+          s="${GITHUB_REF_NAME#v}"
+          d="ajan-bekci-$s-${{ matrix.ad }}"
+          mkdir "$d"
+          cp README.md README.tr.md LICENSE-MIT LICENSE-APACHE "$d/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/release/ajan-bekci.exe "$d/"
+            7z a "$d.zip" "$d" >/dev/null
+            echo "DOSYA=$d.zip" >> "$GITHUB_ENV"
+          else
+            cp target/release/ajan-bekci "$d/"
+            tar czf "$d.tar.gz" "$d"
+            echo "DOSYA=$d.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.ad }}
+          path: ${{ env.DOSYA }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: taslak release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum * > SHA256SUMS
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft --title "$GITHUB_REF_NAME" --notes "Draft — notes added before publishing."
+          gh release upload "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --clobber *

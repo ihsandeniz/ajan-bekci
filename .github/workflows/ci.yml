@@ -1,0 +1,42 @@
+# ajan-bekci CI. Windows ölçümü yalnız burada (gerçek Windows makinesi yok): "CI'da ölçüldü".
+name: ci
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable && rustup component add clippy
+      - run: cargo build
+      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable && rustup component add clippy
+      - run: node --version
+      - run: cargo build --release
+      - run: cargo test --workspace -- --nocapture
+        timeout-minutes: 8
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: duman (S1-S4 × 3 tur)
+        timeout-minutes: 8
+        shell: pwsh
+        run: ./olcum/windows/duman.ps1 -Tur 3 -Bekci target/release/ajan-bekci.exe -Is "$env:RUNNER_TEMP/duman"
+      - name: tara v0.1 (yalnız K3 rapor)
+        run: target/release/ajan-bekci.exe tara
+      - name: sonuçları sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duman-windows
+          path: ${{ runner.temp }}/duman

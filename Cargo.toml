@@ -1,0 +1,14 @@
+[package]
+name = "ajan-bekci"
+version = "0.1.0"
+edition = "2024"
+description = "Keeps an AI coding agent's process tree (MCP servers, detached children) from outliving the agent; lists leftovers with evidence."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ihsandeniz/ajan-bekci"
+publish = false
+
+[dependencies]
+ajan-bekci-cekirdek = { path = "crates/cekirdek" }
+
+[workspace]
+members = ["crates/cekirdek"]
